@@ -6,13 +6,14 @@ import time
 from telethon.tl.types import InputWebDocument as wb
 import os
 from telegraph import Telegraph, upload_file
-from Database.mongo import ChannelsDB, AdsDB
+from Database.mongo import ChannelsDB, AdsDB, UsersDB
 from Helper.helper import parse_arg, parse_about
 from datetime import datetime
 import asyncio
 
 ChannelsDB = ChannelsDB()
 AdsDB = AdsDB()
+UsersDB = UsersDB()
 
 telegraph = Telegraph()
 r = telegraph.create_account(short_name="Anime_Gallery_Manager")
@@ -56,6 +57,22 @@ async def handler(event):
 async def _(event):
     if event.is_private:
         await event.reply("Im a bot specially made for managing @Anime_Gallery, and provide easy access to all channels we have access to", file = "Hepler\AGM.png")
+        AdsDB.add({'_id':event.id})
+
+@bot.on(events.NewMessage(pattern='/users', chats=main_group_id))
+async def _(event):
+    data = AdsDB.full()
+    await event.reply(f"There are {len(data)} users we can broadcast to.")
+
+@bot.on(events.NewMEssage(pattern='/broadcast', chats=main_group_id))
+async def _(event):
+    msg = await event.get_reply_message()
+    data = AdsDB.full()
+    for i in data:
+        try:
+            await bot.send_message(i['_id'], msg)
+        except:
+            pass
 
 
 @bot.on(events.NewMessage(pattern="/ping"))
@@ -187,7 +204,7 @@ async def del_ad():
     while True:
         ads = AdsDB.full()
         for i in ads:
-            if (datetime.now() - i['time']).days > 1:
+            if (datetime.now() - i['time']).days >= 1:
                 a = i['_id'].split(":")
                 try:
                     await bot1.delete_messages(int(a[0]), int(a[1]))
@@ -204,7 +221,13 @@ async def _(event):
     for i in ads:
         a = i['_id'].split(":")
         b = a[0].replace("-100", "")
-        msg += f't.me/c/{b}/{a[1]}\n'
+        try:
+            channel = await bot.get_entity(b)
+            msg += f't.me/c/{channel.username}/{a[1]}\n'
+        except Exception as e:
+            await event.reply(str(e))
+            msg += f't.me/c/{b}/{a[1]}\n'
+
     await event.reply(msg)
 
 
